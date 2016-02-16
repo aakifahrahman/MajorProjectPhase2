@@ -1,5 +1,3 @@
-# Completed version of the Mortar Spark tutorial script.
-# To follow the tutorial go to https://help.mortardata.com/technologies/spark/spark_tutorial
 
 import string
 import json 
@@ -47,8 +45,8 @@ def class_mapper(label):
 # Initialize a SparkContext
 sc = SparkContext()
 
-# Enter a book id
-asin = '0000013714'
+#To obtain book ID from the user
+asin = input('Enter BookID : ')
 
 # Import full dataset of newsgroup posts as text file
 data_raw = sc.textFile('/home/theertha/Documents/scala/spark-1.6.0/files/sample_sample.json')
@@ -56,11 +54,13 @@ data_raw = sc.textFile('/home/theertha/Documents/scala/spark-1.6.0/files/sample_
 # Parse JSON entries in dataset
 data = data_raw.map(lambda line: json.loads(line))
 
-# Filter only those lines that have this id
-data_asin = data.filter(lambda line: line['asin'] == asin)
+#data_asin = []
+#for line in data:
+#    if line['asin'] == asin:
+#        data_asin.append(line)
 
 # Extract relevant fields in dataset -- category label and text content
-data_pared = data_asin.map(lambda line: (line['overall'], line['reviewText']))
+data_pared = data.map(lambda line: (if line['asin'] == asin: (line['overall'], line['reviewText'])))
 
 # Prepare text for analysis using our tokenize function to clean it up
 data_cleaned = data_pared.map(lambda (label, text): (class_mapper(label), tokenize(text)))
@@ -86,8 +86,8 @@ prediction_and_labels = test_hashed.map(lambda point: (model.predict(point.featu
 # Filter to only correct predictions
 correct = prediction_and_labels.filter(lambda (predicted, actual): predicted == actual)
 
+
 # Calculate and print accuracy rate
 accuracy = correct.count() / float(test_hashed.count())
 
-print "Classifier correctly predicted category " + str(accuracy * 100) + " percent of the time"
-
+print "Classifier correctly predicted category " + str(accuracy*100) + " percent of the time"
