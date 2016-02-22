@@ -1,6 +1,3 @@
-# Completed version of the Mortar Spark tutorial script.
-# To follow the tutorial go to https://help.mortardata.com/technologies/spark/spark_tutorial
-
 import string
 import json 
 
@@ -48,46 +45,61 @@ def class_mapper(label):
 sc = SparkContext()
 
 # Enter a book id
-asin = '0000013714'
+asin = '000100039X'
 
 # Import full dataset of newsgroup posts as text file
-data_raw = sc.textFile('/home/theertha/Documents/scala/spark-1.6.0/files/sample_sample.json')
+data_raw = sc.textFile('/home/theertha/Documents/scala/spark-1.6.0/files/sample_review1.json')
 
 # Parse JSON entries in dataset
 data = data_raw.map(lambda line: json.loads(line))
 
-# Filter only those lines that have this id
-data_asin = data.filter(lambda line: line['asin'] == asin)
+# Filter those lines that do not have this id, to create training set.
+data_train = data.filter(lambda line: line['asin'] != asin)
 
-# Extract relevant fields in dataset -- category label and text content
-data_pared = data_asin.map(lambda line: (line['overall'], line['reviewText']))
+# Filter only those lines that have this id, to create test set
+data_test = data.filter(lambda line: line['asin'] == asin)
 
-# Prepare text for analysis using our tokenize function to clean it up
-data_cleaned = data_pared.map(lambda (label, text): (class_mapper(label), tokenize(text)))
+# Extract relevant fields in training dataset -- category label and text content
+data_relevant_train = data_train.map(lambda line: (line['overall'], line['reviewText']))
 
-# Hashing term frequency vectorizer with 50k features
-htf = HashingTF(50000)
+# Extract relevant fields in testing dataset -- category label and text content
+data_relevant_test = data_test.map(lambda line: (line['overall'], line['reviewText']))
 
-# Create an RDD of LabeledPoints using category labels as labels and tokenized, hashed text as feature vectors
-data_hashed = data_cleaned.map(lambda (label, text): LabeledPoint(label, htf.transform(text)))
+# Prepare text for analysis using our tokenize function to clean it up, on training set
+data_cleaned_train = data_relevant_train.map(lambda (label, text): (class_mapper(label), tokenize(text)))
 
-# Ask Spark to persist the RDD so it won't have to be re-created later
-data_hashed.persist()
+# Prepare text for analysis using our tokenize function to clean it up, on testing set
+data_cleaned_test = data_relevant_test.map(lambda (label, text): (class_mapper(label), tokenize(text)))
 
-# Split data 70/30 into training and test data sets
-train_hashed, test_hashed = data_hashed.randomSplit([0.7, 0.3])
+# Hashing term frequency vectorizer with 50k features, for training set
+htf_train = HashingTF(50000)
+
+# Hashing term frequency vectorizer with 50k features, for testing set
+htf_test = HashingTF(50000)
+
+# Create an RDD of LabeledPoints using category labels as labels and tokenized, hashed text as feature vectors, for training data
+data_hashed_train = data_cleaned_train.map(lambda (label, text): LabeledPoint(label, htf_train.transform(text)))
+
+# Create an RDD of LabeledPoints using category labels as labels and tokenized, hashed text as feature vectors, for testing data
+data_hashed_test = data_cleaned_test.map(lambda (label, text): LabeledPoint(label, htf_test.transform(text)))
+
+# Ask Spark to persist the training RDD so it won't have to be re-created later
+data_hashed_train.persist()
+
+# Ask Spark to persist the testing RDD so it won't have to be re-created later
+data_hashed_test.persist()
 
 # Train a Naive Bayes model on the training data
-model = NaiveBayes.train(train_hashed)
+model = NaiveBayes.train(data_hashed_train)
 
 # Compare predicted labels to actual labels
-prediction_and_labels = test_hashed.map(lambda point: (model.predict(point.features), point.label))
+prediction_and_labels = data_hashed_test.map(lambda point: (model.predict(point.features), point.label))
 
 # Filter to only correct predictions
 correct = prediction_and_labels.filter(lambda (predicted, actual): predicted == actual)
 
 # Calculate and print accuracy rate
-accuracy = correct.count() / float(test_hashed.count())
+accuracy = correct.count() / float(data_hashed_test.count())
 
-print "Classifier correctly predicted category " + str(accuracy * 100) + " percent of the time"
+print "		***Classifier correctly predicted category " + str(accuracy * 100) + " percent of the time***		"
 
