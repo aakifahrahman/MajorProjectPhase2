@@ -45,7 +45,7 @@ def class_mapper(label):
 sc = SparkContext()
 
 # Enter a book id
-asin = '000100039X'
+asin = '0002007770'
 
 # Import full dataset of newsgroup posts as text file
 data_raw = sc.textFile('/home/theertha/Documents/scala/spark-1.6.0/files/dataset.json')
@@ -89,18 +89,48 @@ data_hashed_train.persist()
 # Ask Spark to persist the testing RDD so it won't have to be re-created later
 data_hashed_test.persist()
 
-# Train a Naive Bayes model on the training data
+# Train a Support Vector Machine model on the training data
 model = SVMWithSGD.train(data_hashed_train)
 
 # Compare predicted labels to actual labels
 prediction_and_labels = data_hashed_test.map(lambda point: (model.predict(point.features), point.label))
 
+#Positive Reviews
+positive = prediction_and_labels.filter(lambda (predicted, actual): predicted == 1)
+
+#Negative Reviews
+negative = prediction_and_labels.filter(lambda (predicted, actual): predicted == 0)
+
+p = positive.count()
+
+n = negative.count()
+
 # Filter to only correct predictions
 correct = prediction_and_labels.filter(lambda (predicted, actual): predicted == actual)
+
+#To get the number of labels that are correctly predicted as positive
+true_positive = prediction_and_labels.filter(lambda (predicted, actual): predicted == actual and predicted == 1)
+
+tp = true_positive.count()
+
+#To get the number of labels that are wrongly predicted as positive
+false_positive = prediction_and_labels.filter(lambda (predicted, actual): predicted != actual and predicted == 1)
+
+fp = false_positive.count()
+
+#To get the number of labels that are wrongly predicted as negative
+false_negative = prediction_and_labels.filter(lambda (predicted, actual): predicted != actual and predicted == 0)
+
+fn = false_negative.count()
+
+precision = (float(tp)/float((tp+fp)))
+recall = (float(tp)/float((tp+fn)))
 
 # Calculate and print accuracy rate
 accuracy = correct.count() / float(data_hashed_test.count())
 
-print "		***Classifier correctly predicted category " + str(accuracy * 100) + " percent of the time***		"
-
+if (p>n):
+	print "\n\n		***The book is POSITIVE and the classifier correctly predicted category " + str(accuracy * 100) + " percent of the time, with precision:" + str(precision*100) + " and recall: " + str(recall*100) + "***	       \n\n"
+else: 
+	print "\n\n		***The book is NEGATIVE and the classifier correctly predicted category " + str(accuracy * 100) + " percent of the time, with precision:" + str(precision*100) + " and recall: " + str(recall*100) + "***	       \n\n"
 
